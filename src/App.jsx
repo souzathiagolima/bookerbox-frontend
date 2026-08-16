@@ -211,6 +211,8 @@ function ReadingStatsCard({ stats, loading, onOpenBook }) {
       </div>
     );
   }
+  const hasContent = stats.averageRating != null || stats.topGenre || stats.topAuthor || stats.currentlyReading || stats.favorites?.length > 0;
+  if (!hasContent) return null;
   return (
     <div style={{ marginBottom: 26, background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '14px 16px' }}>
       {stats.averageRating != null && (
@@ -805,6 +807,9 @@ export default function Bookerbox() {
             <a href="/privacidade" className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, textDecoration: 'underline' }}>
               Política de Privacidade
             </a>
+          </p>
+          <p className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted, textAlign: 'center', marginTop: 14, opacity: 0.7 }}>
+            © {new Date().getFullYear()} Desenvolvido por TLS
           </p>
         </div>
       </div>
