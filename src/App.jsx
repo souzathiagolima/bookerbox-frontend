@@ -367,8 +367,78 @@ export default function Bookerbox() {
     }
   }
 
+  /* ---------------- login social (Google e Facebook) ---------------- */
+  // Substitua pelos valores reais que você criar no Google Cloud Console
+  // e no Meta for Developers. Não são segredos — podem ficar no código do site.
+  const GOOGLE_CLIENT_ID = '735029892304-1jm5jpkgd41pf0c71h7ebtukcah6c9oo.apps.googleusercontent.com';
+  const FACEBOOK_APP_ID = '3026633654395154';
+
+  async function afterSocialLogin(data, providerLabel) {
+    setToken(data.token);
+    setCurrentUser(data.user);
+    setScreen('app');
+    await loadShelves(data.token, apiBase);
+    await loadFeed(data.token, apiBase);
+    await loadNotifications();
+    showToast(`Login feito com ${providerLabel}!`);
+  }
+
+  async function handleGoogleCredential(response) {
+    try {
+      const data = await callApi(apiBase, null, '/auth/google', { method: 'POST', body: JSON.stringify({ idToken: response.credential }) });
+      await afterSocialLogin(data, 'Google');
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  useEffect(() => {
+    if (screen !== 'login') return;
+    if (!window.google?.accounts?.id) return; // script do Google ainda carregando
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+    });
+    const el = document.getElementById('google-signin-btn');
+    if (el) {
+      el.innerHTML = '';
+      window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
+    }
+  }, [screen, apiBase]);
+
   function handleFacebookLoginClick() {
-    showToast('Login via Facebook ainda não está conectado ao backend (Fase 3 do plano — veja POST /auth/facebook no README). Use e-mail e senha por enquanto.');
+    if (!window.FB) {
+      window.fbAsyncInit = function () {
+        window.FB.init({ appId: FACEBOOK_APP_ID, cookie: true, xfbml: false, version: 'v20.0' });
+        runFacebookLogin();
+      };
+      if (!window.__fbSdkLoading) {
+        window.__fbSdkLoading = true;
+        const s = document.createElement('script');
+        s.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+        s.async = true;
+        document.body.appendChild(s);
+      }
+      return;
+    }
+    runFacebookLogin();
+  }
+
+  function runFacebookLogin() {
+    window.FB.login(function (response) {
+      if (response.authResponse) {
+        (async () => {
+          try {
+            const data = await callApi(apiBase, null, '/auth/facebook', { method: 'POST', body: JSON.stringify({ accessToken: response.authResponse.accessToken }) });
+            await afterSocialLogin(data, 'Facebook');
+          } catch (err) {
+            showToast(err.message);
+          }
+        })();
+      } else {
+        showToast('Login com Facebook cancelado.');
+      }
+    }, { scope: 'public_profile,email' });
   }
 
   async function handleLogout() {
@@ -616,10 +686,12 @@ export default function Bookerbox() {
           </div>
 
           <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 24 }}>
+            <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }} />
+
             <button onClick={handleFacebookLoginClick} className="bkbx-body" style={{
               width: '100%', padding: '11px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: '#3b5998', color: '#fff', fontWeight: 600, fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14, opacity: 0.85,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14,
             }}>
               <Facebook size={16} /> Continuar com Facebook
             </button>
