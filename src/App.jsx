@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Star, Home, User, BookOpen, Heart, Share2, Facebook, Instagram,
-  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck,
+  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck, Bell,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------------
@@ -244,6 +244,10 @@ export default function Bookerbox() {
   const [viewedPerson, setViewedPerson] = useState(null); // { user, stats, following, followers }
   const [viewedPersonLoading, setViewedPersonLoading] = useState(false);
 
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+
   const [toast, setToast] = useState(null);
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2800); }
 
@@ -265,6 +269,7 @@ export default function Bookerbox() {
               setScreen('app');
               await loadShelves(s.token, s.apiBase);
               await loadFeed(s.token, s.apiBase);
+              await loadNotifications();
             } catch (e) { /* token inválido/expirado: fica na tela de login */ }
           }
         }
@@ -353,6 +358,7 @@ export default function Bookerbox() {
       setScreen('app');
       await loadShelves(data.token, apiBase);
       await loadFeed(data.token, apiBase);
+      await loadNotifications();
       showToast(authMode === 'register' ? 'Conta criada!' : 'Login feito!');
     } catch (err) {
       showToast(err.message);
@@ -532,6 +538,49 @@ export default function Bookerbox() {
     }
   }
   function closePerson() { setViewedPerson(null); }
+
+  /* ---------------- notificações ---------------- */
+  async function loadNotifications() {
+    try {
+      const data = await apiFetch('/notifications');
+      setNotifications(data.notifications);
+      setUnreadCount(data.unread);
+    } catch (err) { /* falha silenciosa, não interrompe o app */ }
+  }
+
+  async function markAllRead() {
+    try {
+      await apiFetch('/notifications/read-all', { method: 'POST' });
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) { /* ignora */ }
+  }
+
+  async function toggleNotifPanel() {
+    const next = !showNotifPanel;
+    setShowNotifPanel(next);
+    if (next) {
+      await loadNotifications();
+      await markAllRead();
+    }
+  }
+
+  function notifText(n) {
+    const name = n.payload?.actorName || 'Alguém';
+    if (n.type === 'follow') return `${name} começou a seguir você`;
+    if (n.type === 'like') return `${name} curtiu sua resenha de "${n.payload?.bookTitle || 'um livro'}"`;
+    return 'Nova notificação';
+  }
+
+  /* ---------------- atualização automática (a cada 25s) ---------------- */
+  useEffect(() => {
+    if (screen !== 'app') return;
+    const interval = setInterval(() => {
+      if (activeTab === 'feed' && !selectedBook && !viewedPerson) loadFeed();
+      loadNotifications();
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [screen, activeTab, selectedBook, viewedPerson, apiBase, token]);
 
   function onTabClick(id) {
     setActiveTab(id);
@@ -903,10 +952,42 @@ export default function Bookerbox() {
             <BookOpen size={19} color={C.gold} />
             <span className="bkbx-display" style={{ fontSize: 18, fontWeight: 700 }}>Bookerbox</span>
           </div>
-          <button onClick={handleLogout} title="Sair" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Avatar name={currentUser.name} size={26} />
-            <LogOut size={15} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
+            <button onClick={toggleNotifPanel} title="Notificações" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', position: 'relative', display: 'flex' }}>
+              <Bell size={19} />
+              {unreadCount > 0 && (
+                <span className="bkbx-mono" style={{
+                  position: 'absolute', top: -4, right: -4, background: C.burgundy, color: '#fff',
+                  fontSize: 9, fontWeight: 700, borderRadius: 999, minWidth: 14, height: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifPanel && (
+              <div style={{
+                position: 'absolute', top: 30, right: 40, width: 280, maxHeight: 340, overflowY: 'auto',
+                background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.4)', zIndex: 20, padding: 10,
+              }}>
+                <div className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted, marginBottom: 8, padding: '0 4px' }}>NOTIFICAÇÕES</div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '16px 4px', textAlign: 'center', color: C.textMuted, fontSize: 12.5 }} className="bkbx-body">
+                    Nada por aqui ainda.
+                  </div>
+                ) : notifications.map(n => (
+                  <div key={n.id} style={{ padding: '8px 6px', borderBottom: `1px solid ${C.panelBorder}`, fontSize: 12.5 }} className="bkbx-body">
+                    <div style={{ color: C.textLight, opacity: n.read ? 0.6 : 1 }}>{notifText(n)}</div>
+                    <div className="bkbx-mono" style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{relTime(n.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={handleLogout} title="Sair" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Avatar name={currentUser.name} size={26} />
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
         {!selectedBook && !viewedPerson && (
           <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px', display: 'flex', gap: 4 }}>
