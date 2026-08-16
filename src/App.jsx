@@ -201,7 +201,9 @@ export default function Bookerbox() {
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [screen, setScreen] = useState('login'); // 'login' | 'app'
 
-  const [apiBase, setApiBase] = useState('');
+  const DEFAULT_API_BASE = 'https://bookerbox-api.onrender.com';
+  const [apiBase, setApiBase] = useState(DEFAULT_API_BASE);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [token, setToken] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -209,6 +211,7 @@ export default function Bookerbox() {
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [formPasswordConfirm, setFormPasswordConfirm] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState('feed');
@@ -332,6 +335,10 @@ export default function Bookerbox() {
     if (!apiBase.trim()) { showToast('Informe a URL da API.'); return; }
     if (!formEmail.trim() || !formPassword.trim() || (authMode === 'register' && !formName.trim())) {
       showToast('Preencha todos os campos.');
+      return;
+    }
+    if (authMode === 'register' && formPassword !== formPasswordConfirm) {
+      showToast('As senhas não são iguais.');
       return;
     }
     setAuthLoading(true);
@@ -560,25 +567,6 @@ export default function Bookerbox() {
           </div>
 
           <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 24 }}>
-            <label className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>URL DA API</label>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 16 }}>
-              <input
-                value={apiBase}
-                onChange={e => setApiBase(e.target.value)}
-                placeholder="http://localhost:3000"
-                className="bkbx-input bkbx-body"
-                style={{
-                  flex: 1, padding: '10px 12px', borderRadius: 6, border: `1px solid ${C.panelBorder}`,
-                  background: C.bgSoft, color: C.textLight, fontSize: 13, outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-              <button type="button" onClick={testConnection} title="Testar conexão" style={{
-                background: C.bgSoft, border: `1px solid ${C.panelBorder}`, borderRadius: 6, padding: '0 12px', cursor: 'pointer', color: C.gold,
-              }}>
-                <Wifi size={16} />
-              </button>
-            </div>
-
             <button onClick={handleFacebookLoginClick} className="bkbx-body" style={{
               width: '100%', padding: '11px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: '#3b5998', color: '#fff', fontWeight: 600, fontSize: 14,
@@ -608,7 +596,13 @@ export default function Bookerbox() {
               <label className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>E-MAIL</label>
               <input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="voce@email.com" className="bkbx-input bkbx-body" style={fieldStyle} />
               <label className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>SENHA</label>
-              <input type="password" value={formPassword} onChange={e => setFormPassword(e.target.value)} placeholder="mínimo 6 caracteres" className="bkbx-input bkbx-body" style={{ ...fieldStyle, marginBottom: 16 }} />
+              <input type="password" value={formPassword} onChange={e => setFormPassword(e.target.value)} placeholder="mínimo 6 caracteres" className="bkbx-input bkbx-body" style={{ ...fieldStyle, marginBottom: authMode === 'register' ? 0 : 16 }} />
+              {authMode === 'register' && (
+                <>
+                  <label className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>CONFIRMAR SENHA</label>
+                  <input type="password" value={formPasswordConfirm} onChange={e => setFormPasswordConfirm(e.target.value)} placeholder="digite a senha de novo" className="bkbx-input bkbx-body" style={{ ...fieldStyle, marginBottom: 16 }} />
+                </>
+              )}
 
               <button type="button" onClick={() => handleAuthSubmit()} disabled={authLoading} className="bkbx-body" style={{
                 width: '100%', padding: '11px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
@@ -620,10 +614,39 @@ export default function Bookerbox() {
                 {authMode === 'register' ? 'Criar conta e entrar' : 'Entrar'}
               </button>
             </div>
+
+            <button onClick={() => setShowAdvanced(v => !v)} className="bkbx-body" style={{
+              background: 'none', border: 'none', color: C.textMuted, fontSize: 11, cursor: 'pointer', marginTop: 16, padding: 0,
+            }}>
+              {showAdvanced ? 'ocultar opções avançadas' : 'opções avançadas'}
+            </button>
+
+            {showAdvanced && (
+              <div style={{ marginTop: 10 }}>
+                <label className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>URL DA API</label>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <input
+                    value={apiBase}
+                    onChange={e => setApiBase(e.target.value)}
+                    placeholder="http://localhost:3000"
+                    className="bkbx-input bkbx-body"
+                    style={{
+                      flex: 1, padding: '10px 12px', borderRadius: 6, border: `1px solid ${C.panelBorder}`,
+                      background: C.bgSoft, color: C.textLight, fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                  <button type="button" onClick={testConnection} title="Testar conexão" style={{
+                    background: C.bgSoft, border: `1px solid ${C.panelBorder}`, borderRadius: 6, padding: '0 12px', cursor: 'pointer', color: C.gold,
+                  }}>
+                    <Wifi size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <p className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-            Aponte para a API do Bookerbox (local ou hospedada). Se estiver rodando localmente, use <span className="bkbx-mono">http://localhost:3000</span>.
+            Suas resenhas, estantes e conexões ficam salvas de verdade — sua conta é sua, para sempre.
           </p>
         </div>
       </div>
