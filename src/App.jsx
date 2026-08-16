@@ -769,6 +769,11 @@ export default function Bookerbox() {
           <p className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
             Suas resenhas, estantes e conexões ficam salvas de verdade — sua conta é sua, para sempre.
           </p>
+          <p style={{ textAlign: 'center', marginTop: 8 }}>
+            <a href="/privacidade" className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, textDecoration: 'underline' }}>
+              Política de Privacidade
+            </a>
+          </p>
         </div>
       </div>
     );
