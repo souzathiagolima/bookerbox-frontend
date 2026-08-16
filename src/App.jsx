@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Star, Home, User, BookOpen, Heart, Share2, Facebook, Instagram,
-  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck, Bell,
+  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck, Bell, Calendar, Award,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------------
@@ -194,6 +194,68 @@ function EmptyState({ icon: Icon, text, compact }) {
   );
 }
 
+function StatLine({ icon: Icon, iconColor, children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+      <Icon size={17} color={iconColor || C.gold} style={{ flexShrink: 0 }} />
+      <span className="bkbx-body" style={{ fontSize: 14, color: C.textLight }}>{children}</span>
+    </div>
+  );
+}
+
+function ReadingStatsCard({ stats, loading, onOpenBook }) {
+  if (loading || !stats) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13, marginBottom: 20 }}>
+        <Loader2 size={16} className="spin" /> Carregando estatísticas…
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginBottom: 26, background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '14px 16px' }}>
+      <StatLine icon={BookOpen}>
+        <strong>{stats.totalRead}</strong> livro{stats.totalRead !== 1 ? 's' : ''} lido{stats.totalRead !== 1 ? 's' : ''}
+        {stats.readThisYear > 0 && <span style={{ color: C.textMuted }}> · {stats.readThisYear} este ano</span>}
+      </StatLine>
+      {stats.averageRating != null && (
+        <StatLine icon={Star}>
+          <strong>{stats.averageRating.toFixed(1).replace('.', ',')}</strong> de média nas avaliações
+        </StatLine>
+      )}
+      {stats.topGenre && (
+        <StatLine icon={Heart} iconColor={C.burgundy}>{stats.topGenre.name}</StatLine>
+      )}
+      {stats.topAuthor && (
+        <StatLine icon={Award}>
+          Autor mais lido: <strong>{stats.topAuthor.name}</strong>
+        </StatLine>
+      )}
+      {stats.currentlyReading && (
+        <button onClick={() => onOpenBook({ id: stats.currentlyReading.id, title: stats.currentlyReading.title, cover: stats.currentlyReading.cover_url })}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+          <StatLine icon={BookOpen} iconColor={C.gold}>
+            Lendo agora: <strong>{stats.currentlyReading.title}</strong>
+          </StatLine>
+        </button>
+      )}
+
+      {stats.favorites?.length > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.panelBorder}` }}>
+          <div className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted, marginBottom: 8 }}>MEUS FAVORITOS</div>
+          {stats.favorites.slice(0, 5).map((b, i) => (
+            <button key={b.id} onClick={() => onOpenBook({ id: b.id, title: b.title, cover: b.cover_url })}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '5px 0', textAlign: 'left' }}>
+              <span className="bkbx-mono" style={{ fontSize: 12, color: C.gold, width: 16, flexShrink: 0 }}>{i + 1}.</span>
+              <Cover src={b.cover_url} alt={b.title} width={26} height={38} radius={3} />
+              <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight }}>{b.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================================================
    APP
 ============================================================ */
@@ -243,6 +305,9 @@ export default function Bookerbox() {
 
   const [viewedPerson, setViewedPerson] = useState(null); // { user, stats, following, followers }
   const [viewedPersonLoading, setViewedPersonLoading] = useState(false);
+
+  const [myReadingStats, setMyReadingStats] = useState(null);
+  const [readingStatsLoading, setReadingStatsLoading] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -367,11 +432,10 @@ export default function Bookerbox() {
     }
   }
 
-  /* ---------------- login social (Google e Facebook) ---------------- */
-  // Substitua pelos valores reais que você criar no Google Cloud Console
-  // e no Meta for Developers. Não são segredos — podem ficar no código do site.
+  /* ---------------- login social (Google) ---------------- */
+  // Substitua pelo valor real que você criar no Google Cloud Console.
+  // Não é segredo — pode ficar no código do site.
   const GOOGLE_CLIENT_ID = '735029892304-1jm5jpkgd41pf0c71h7ebtukcah6c9oo.apps.googleusercontent.com';
-  const FACEBOOK_APP_ID = '3026633654395154';
 
   async function afterSocialLogin(data, providerLabel) {
     setToken(data.token);
@@ -405,41 +469,6 @@ export default function Bookerbox() {
       window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
     }
   }, [screen, apiBase]);
-
-  function handleFacebookLoginClick() {
-    if (!window.FB) {
-      window.fbAsyncInit = function () {
-        window.FB.init({ appId: FACEBOOK_APP_ID, cookie: true, xfbml: false, version: 'v20.0' });
-        runFacebookLogin();
-      };
-      if (!window.__fbSdkLoading) {
-        window.__fbSdkLoading = true;
-        const s = document.createElement('script');
-        s.src = 'https://connect.facebook.net/pt_BR/sdk.js';
-        s.async = true;
-        document.body.appendChild(s);
-      }
-      return;
-    }
-    runFacebookLogin();
-  }
-
-  function runFacebookLogin() {
-    window.FB.login(function (response) {
-      if (response.authResponse) {
-        (async () => {
-          try {
-            const data = await callApi(apiBase, null, '/auth/facebook', { method: 'POST', body: JSON.stringify({ accessToken: response.authResponse.accessToken }) });
-            await afterSocialLogin(data, 'Facebook');
-          } catch (err) {
-            showToast(err.message);
-          }
-        })();
-      } else {
-        showToast('Login com Facebook cancelado.');
-      }
-    }, { scope: 'public_profile,email' });
-  }
 
   async function handleLogout() {
     try { await storage.delete('bookerbox:session', false); } catch (e) {}
@@ -595,12 +624,14 @@ export default function Bookerbox() {
   async function openPerson(personId) {
     setViewedPersonLoading(true);
     try {
-      const [profile, followingRes, followersRes] = await Promise.all([
+      const [profile, followingRes, followersRes, readingRes, compatRes] = await Promise.all([
         apiFetch(`/users/${personId}`),
         apiFetch(`/users/${personId}/following`),
         apiFetch(`/users/${personId}/followers`),
+        apiFetch(`/users/${personId}/reading-stats`),
+        apiFetch(`/users/${personId}/compatibility`),
       ]);
-      setViewedPerson({ user: profile.user, stats: profile.stats, following: followingRes.following, followers: followersRes.followers });
+      setViewedPerson({ user: profile.user, stats: profile.stats, following: followingRes.following, followers: followersRes.followers, reading: readingRes, compatibility: compatRes });
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -608,6 +639,18 @@ export default function Bookerbox() {
     }
   }
   function closePerson() { setViewedPerson(null); }
+
+  async function loadMyReadingStats() {
+    setReadingStatsLoading(true);
+    try {
+      const data = await apiFetch(`/users/${currentUser.id}/reading-stats`);
+      setMyReadingStats(data);
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setReadingStatsLoading(false);
+    }
+  }
 
   /* ---------------- notificações ---------------- */
   async function loadNotifications() {
@@ -657,6 +700,7 @@ export default function Bookerbox() {
     if (id === 'feed') loadFeed();
     if (id === 'shelves') loadShelves();
     if (id === 'people') loadConnections();
+    if (id === 'profile') loadMyReadingStats();
   }
 
   /* =========================== LOADING SESSÃO =========================== */
@@ -686,15 +730,7 @@ export default function Bookerbox() {
           </div>
 
           <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 24 }}>
-            <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }} />
-
-            <button onClick={handleFacebookLoginClick} className="bkbx-body" style={{
-              width: '100%', padding: '11px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              background: '#3b5998', color: '#fff', fontWeight: 600, fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14,
-            }}>
-              <Facebook size={16} /> Continuar com Facebook
-            </button>
+            <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }} />
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0', color: C.textMuted, fontSize: 12 }}>
               <div style={{ flex: 1, height: 1, background: C.panelBorder }} />
@@ -968,7 +1004,7 @@ export default function Bookerbox() {
         </div>
       );
     }
-    const { user, stats, following, followers } = viewedPerson;
+    const { user, stats, following, followers, reading, compatibility } = viewedPerson;
     const isMe = user.id === currentUser.id;
     const isFollowing = myFollowingIds.has(user.id);
 
@@ -997,7 +1033,26 @@ export default function Bookerbox() {
           )}
         </div>
 
-        <div style={{ marginTop: 24, marginBottom: 26 }}>
+        {!isMe && compatibility?.percent != null && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, background: C.panel, border: `1px solid ${C.goldSoft}`,
+            borderRadius: 8, padding: '10px 14px', marginBottom: 14,
+          }}>
+            <Sparkles size={16} color={C.gold} style={{ flexShrink: 0 }} />
+            <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight }}>
+              <strong style={{ color: C.gold }}>{compatibility.percent}%</strong> de compatibilidade literária com você
+              {compatibility.sharedBooks?.length > 0 && (
+                <span style={{ color: C.textMuted }}> · {compatibility.sharedBooks.length} livro{compatibility.sharedBooks.length !== 1 ? 's' : ''} em comum</span>
+              )}
+            </span>
+          </div>
+        )}
+
+        <div style={{ marginTop: 20 }}>
+          <ReadingStatsCard stats={reading} loading={false} onOpenBook={openBook} />
+        </div>
+
+        <div style={{ marginTop: 4, marginBottom: 26 }}>
           <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
             {isMe ? 'VOCÊ SEGUE' : `QUEM ${user.name.split(' ')[0].toUpperCase()} SEGUE`} ({following.length})
           </div>
@@ -1235,6 +1290,8 @@ export default function Bookerbox() {
                   </div>
                 </div>
               </div>
+
+              <ReadingStatsCard stats={myReadingStats} loading={readingStatsLoading} onOpenBook={openBook} />
 
               <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>MINHAS RESENHAS</div>
               {myReviews.length === 0 ? (
