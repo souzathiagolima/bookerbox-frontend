@@ -213,10 +213,6 @@ function ReadingStatsCard({ stats, loading, onOpenBook }) {
   }
   return (
     <div style={{ marginBottom: 26, background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '14px 16px' }}>
-      <StatLine icon={BookOpen}>
-        <strong>{stats.totalRead}</strong> livro{stats.totalRead !== 1 ? 's' : ''} lido{stats.totalRead !== 1 ? 's' : ''}
-        {stats.readThisYear > 0 && <span style={{ color: C.textMuted }}> · {stats.readThisYear} este ano</span>}
-      </StatLine>
       {stats.averageRating != null && (
         <StatLine icon={Star}>
           <strong>{stats.averageRating.toFixed(1).replace('.', ',')}</strong> de média nas avaliações
@@ -700,7 +696,7 @@ export default function Bookerbox() {
     if (id === 'feed') loadFeed();
     if (id === 'shelves') loadShelves();
     if (id === 'people') loadConnections();
-    if (id === 'profile') loadMyReadingStats();
+    if (id === 'profile') { loadMyReadingStats(); loadConnections(); }
   }
 
   /* =========================== LOADING SESSÃO =========================== */
@@ -1285,9 +1281,11 @@ export default function Bookerbox() {
                 <Avatar name={currentUser.name} size={56} />
                 <div>
                   <div className="bkbx-display" style={{ fontSize: 19, fontWeight: 700 }}>{currentUser.name}</div>
-                  <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>
-                    {myReviews.length} resenha{myReviews.length !== 1 ? 's' : ''} · {shelfList('read').length} lido{shelfList('read').length !== 1 ? 's' : ''}
-                  </div>
+                  <button onClick={() => onTabClick('people')} className="bkbx-mono" style={{
+                    fontSize: 11, color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline',
+                  }}>
+                    {myFollowers.length} seguidor{myFollowers.length !== 1 ? 'es' : ''} · {myFollowing.length} seguindo
+                  </button>
                 </div>
               </div>
 
