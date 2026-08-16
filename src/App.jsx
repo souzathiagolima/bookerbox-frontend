@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Star, Home, User, BookOpen, Heart, Share2, Facebook, Instagram,
-  LogOut, Loader2, ArrowLeft, Sparkles, Wifi,
+  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------------
@@ -231,6 +231,16 @@ export default function Bookerbox() {
   const [newRating, setNewRating] = useState(0);
   const [newText, setNewText] = useState('');
 
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [peopleResults, setPeopleResults] = useState([]);
+  const [peopleSearchLoading, setPeopleSearchLoading] = useState(false);
+  const [myFollowing, setMyFollowing] = useState([]);
+  const [myFollowers, setMyFollowers] = useState([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
+
+  const [viewedPerson, setViewedPerson] = useState(null); // { user, stats, following, followers }
+  const [viewedPersonLoading, setViewedPersonLoading] = useState(false);
+
   const [toast, setToast] = useState(null);
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2800); }
 
@@ -456,10 +466,71 @@ export default function Bookerbox() {
     }
   }
 
+  /* ---------------- pessoas / conexões ---------------- */
+  async function loadConnections() {
+    setConnectionsLoading(true);
+    try {
+      const [followingRes, followersRes] = await Promise.all([
+        apiFetch(`/users/${currentUser.id}/following`),
+        apiFetch(`/users/${currentUser.id}/followers`),
+      ]);
+      setMyFollowing(followingRes.following);
+      setMyFollowers(followersRes.followers);
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setConnectionsLoading(false);
+    }
+  }
+
+  async function searchPeople() {
+    if (!peopleQuery.trim()) return;
+    setPeopleSearchLoading(true);
+    try {
+      const data = await apiFetch(`/users/search?q=${encodeURIComponent(peopleQuery)}`);
+      setPeopleResults(data.users.filter(u => u.id !== currentUser.id));
+    } catch (err) {
+      showToast(err.message);
+      setPeopleResults([]);
+    } finally {
+      setPeopleSearchLoading(false);
+    }
+  }
+
+  async function toggleFollow(personId, isFollowing) {
+    try {
+      await apiFetch(`/users/${personId}/follow`, { method: isFollowing ? 'DELETE' : 'POST' });
+      showToast(isFollowing ? 'Deixou de seguir.' : 'Agora vocês estão conectados!');
+      await loadConnections();
+      if (viewedPerson?.user.id === personId) await openPerson(personId);
+      await loadFeed();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function openPerson(personId) {
+    setViewedPersonLoading(true);
+    try {
+      const [profile, followingRes, followersRes] = await Promise.all([
+        apiFetch(`/users/${personId}`),
+        apiFetch(`/users/${personId}/following`),
+        apiFetch(`/users/${personId}/followers`),
+      ]);
+      setViewedPerson({ user: profile.user, stats: profile.stats, following: followingRes.following, followers: followersRes.followers });
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setViewedPersonLoading(false);
+    }
+  }
+  function closePerson() { setViewedPerson(null); }
+
   function onTabClick(id) {
     setActiveTab(id);
     if (id === 'feed') loadFeed();
     if (id === 'shelves') loadShelves();
+    if (id === 'people') loadConnections();
   }
 
   /* =========================== LOADING SESSÃO =========================== */
@@ -564,13 +635,14 @@ export default function Bookerbox() {
     { id: 'feed', label: 'Início', icon: Home },
     { id: 'search', label: 'Buscar', icon: Search },
     { id: 'shelves', label: 'Estantes', icon: BookOpen },
+    { id: 'people', label: 'Amigos', icon: Users },
     { id: 'profile', label: 'Perfil', icon: User },
   ];
 
   const myReviews = feedReviews.filter(r => r.user_id === currentUser.id);
   const shelfList = status => Object.values(shelves).filter(s => s.status === status);
   const reviewedBookIds = new Set(myReviews.map(r => r.book_id));
-
+  const myFollowingIds = new Set(myFollowing.map(u => u.id));
   /* =========================== BOOK DETAIL =========================== */
   function BookDetail({ book }) {
     const rs = bookDetailReviews;
@@ -711,6 +783,92 @@ export default function Bookerbox() {
     );
   }
 
+  /* =========================== PESSOA (linha em lista) =========================== */
+  function PersonRow({ person, isFollowing }) {
+    const isMe = person.id === currentUser.id;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.panelBorder}` }}>
+        <button onClick={() => openPerson(person.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <Avatar name={person.name} size={32} />
+          <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, fontWeight: 600 }}>{person.name}</span>
+        </button>
+        {!isMe && (
+          <button onClick={() => toggleFollow(person.id, isFollowing)} className="bkbx-body" style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
+          }}>
+            {isFollowing ? <UserCheck size={13} /> : <UserPlus size={13} />}
+            {isFollowing ? 'Seguindo' : 'Seguir'}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  /* =========================== PERFIL DE OUTRA PESSOA =========================== */
+  function PersonProfile() {
+    if (viewedPersonLoading || !viewedPerson) {
+      return (
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
+          <button onClick={closePerson} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
+            <ArrowLeft size={15} /> voltar
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
+            <Loader2 size={16} className="spin" /> Carregando perfil…
+          </div>
+        </div>
+      );
+    }
+    const { user, stats, following, followers } = viewedPerson;
+    const isMe = user.id === currentUser.id;
+    const isFollowing = myFollowingIds.has(user.id);
+
+    return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 90px' }}>
+        <button onClick={closePerson} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
+          <ArrowLeft size={15} /> voltar
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+          <Avatar name={user.name} size={56} />
+          <div style={{ flex: 1 }}>
+            <div className="bkbx-display" style={{ fontSize: 19, fontWeight: 700 }}>{user.name}</div>
+            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>
+              {stats.reviews} resenha{stats.reviews !== 1 ? 's' : ''} · {stats.followers} seguidor{stats.followers !== 1 ? 'es' : ''} · {stats.following} seguindo
+            </div>
+          </div>
+          {!isMe && (
+            <button onClick={() => toggleFollow(user.id, isFollowing)} className="bkbx-body" style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
+            }}>
+              {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
+              {isFollowing ? 'Seguindo' : 'Seguir'}
+            </button>
+          )}
+        </div>
+
+        <div style={{ marginTop: 24, marginBottom: 26 }}>
+          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+            {isMe ? 'VOCÊ SEGUE' : `QUEM ${user.name.split(' ')[0].toUpperCase()} SEGUE`} ({following.length})
+          </div>
+          {following.length === 0 ? (
+            <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
+          ) : following.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
+        </div>
+
+        <div>
+          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+            {isMe ? 'SEGUIDORES' : `QUEM SEGUE ${user.name.split(' ')[0].toUpperCase()}`} ({followers.length})
+          </div>
+          {followers.length === 0 ? (
+            <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
+          ) : followers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
+        </div>
+      </div>
+    );
+  }
+
   /* =========================== MAIN RENDER =========================== */
   return (
     <div className="bkbx-body" style={{ minHeight: '100vh', background: C.bg, color: C.textLight }}>
@@ -727,7 +885,7 @@ export default function Bookerbox() {
             <LogOut size={15} />
           </button>
         </div>
-        {!selectedBook && (
+        {!selectedBook && !viewedPerson && (
           <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px', display: 'flex', gap: 4 }}>
             {TABS.map(t => {
               const Icon = t.icon;
@@ -748,6 +906,8 @@ export default function Bookerbox() {
 
       {selectedBook ? (
         <BookDetail book={selectedBook} />
+      ) : viewedPerson ? (
+        <PersonProfile />
       ) : (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '18px 16px 90px' }}>
 
@@ -827,6 +987,59 @@ export default function Bookerbox() {
                   )}
                 </div>
               ))}
+            </>
+          )}
+
+          {activeTab === 'people' && (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                <input
+                  value={peopleQuery}
+                  onChange={e => setPeopleQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') searchPeople(); }}
+                  placeholder="Buscar pessoas pelo nome…"
+                  className="bkbx-input bkbx-body"
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 6, border: `1px solid ${C.panelBorder}`, background: C.panel, color: C.textLight, fontSize: 14, outline: 'none' }}
+                />
+                <button type="button" onClick={() => searchPeople()} style={{ background: C.gold, border: 'none', borderRadius: 6, padding: '0 14px', cursor: 'pointer', color: C.ink, display: 'flex', alignItems: 'center' }}>
+                  <Search size={17} />
+                </button>
+              </div>
+
+              {peopleSearchLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
+                  <Loader2 size={16} className="spin" /> Buscando…
+                </div>
+              )}
+
+              {peopleResults.length > 0 && (
+                <div style={{ marginBottom: 26 }}>
+                  <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>RESULTADOS</div>
+                  {peopleResults.map(p => (
+                    <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />
+                  ))}
+                </div>
+              )}
+
+              {connectionsLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13, marginBottom: 16 }}>
+                  <Loader2 size={16} className="spin" /> Carregando conexões…
+                </div>
+              )}
+
+              <div style={{ marginBottom: 26 }}>
+                <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>VOCÊ SEGUE ({myFollowing.length})</div>
+                {myFollowing.length === 0 ? (
+                  <EmptyState compact icon={Users} text="Você ainda não segue ninguém. Busque pessoas acima." />
+                ) : myFollowing.map(p => <PersonRow key={p.id} person={p} isFollowing={true} />)}
+              </div>
+
+              <div>
+                <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>SEGUIDORES ({myFollowers.length})</div>
+                {myFollowers.length === 0 ? (
+                  <EmptyState compact icon={Users} text="Ninguém te segue ainda." />
+                ) : myFollowers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
+              </div>
             </>
           )}
 
