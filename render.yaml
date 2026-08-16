@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: bookerbox-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
