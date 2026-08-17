@@ -456,16 +456,25 @@ export default function Bookerbox() {
 
   useEffect(() => {
     if (screen !== 'login') return;
-    if (!window.google?.accounts?.id) return; // script do Google ainda carregando
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential,
-    });
-    const el = document.getElementById('google-signin-btn');
-    if (el) {
-      el.innerHTML = '';
-      window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
+    let cancelled = false;
+    function tryRenderGoogleButton() {
+      if (cancelled) return;
+      if (!window.google?.accounts?.id) {
+        setTimeout(tryRenderGoogleButton, 200); // script do Google ainda carregando, tenta de novo
+        return;
+      }
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      });
+      const el = document.getElementById('google-signin-btn');
+      if (el) {
+        el.innerHTML = '';
+        window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
+      }
     }
+    tryRenderGoogleButton();
+    return () => { cancelled = true; };
   }, [screen, apiBase]);
 
   async function handleLogout() {
