@@ -822,7 +822,7 @@ export default function Bookerbox() {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: handleGoogleCredential,
-          use_fedcm_for_button: true, // exigido pelo Chrome atual (FedCM)
+          // (removida a flag use_fedcm_for_button — parecia deixar o botão mais instável)
         });
         const el = document.getElementById('google-signin-btn');
         if (el) {
