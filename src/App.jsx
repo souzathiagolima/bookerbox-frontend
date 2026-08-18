@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Star, Home, User, BookOpen, Heart, Share2, Facebook, Instagram,
-  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck, Bell, Calendar, Award,
+  LogOut, Loader2, ArrowLeft, Sparkles, Wifi, Users, UserPlus, UserCheck, Bell, Calendar, Award, X, Camera,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------------
@@ -126,7 +126,19 @@ function Stars({ value = 0, size = 16, interactive = false, onChange }) {
   );
 }
 
-function Avatar({ name, size = 36 }) {
+function Avatar({ name, size = 36, src }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        style={{
+          width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
+          border: `1px solid ${C.panelBorder}`,
+        }}
+      />
+    );
+  }
   return (
     <div className="bkbx-mono" style={{
       width: size, height: size, borderRadius: '50%', background: C.gold, color: C.ink,
@@ -254,6 +266,333 @@ function ReadingStatsCard({ stats, loading, onOpenBook }) {
   );
 }
 
+/* ---------------------------------------------------------------
+   Os 4 componentes abaixo ficam FORA de Bookerbox() de propósito:
+   se ficassem dentro, o React recriaria a função a cada atualização
+   de estado (ex: o relógio de notificações a cada 25s) e trataria
+   isso como um componente novo, derrubando o foco/conteúdo de
+   qualquer campo que você estivesse digitando — era a causa do bug
+   "a caixa de texto da resenha some". Definidos aqui fora, o React
+   entende que é o MESMO componente entre renderizações.
+----------------------------------------------------------------*/
+
+function fbShareUrl(book) {
+  const demoUrl = `https://bookerbox.app/livro/${book.id}`;
+  const quote = `Avaliei "${book.title}" no Bookerbox!`;
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(demoUrl)}&quote=${encodeURIComponent(quote)}`;
+}
+
+/* =========================== DETALHE DO LIVRO =========================== */
+function BookDetail({
+  book, reviews, reviewsLoading, shelves, onSetShelf,
+  newRating, onRatingChange, newText, onTextChange, onSubmit,
+  justPublished, onDismissPublished, onToggleLike, onCopyInstagram, onClose,
+}) {
+  const rs = reviews;
+  const avg = rs.length ? rs.reduce((a, r) => a + r.rating, 0) / rs.length : 0;
+  const myStatus = shelves[book.id]?.status;
+
+  return (
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 90px' }}>
+      <button onClick={onClose} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
+        <ArrowLeft size={15} /> voltar
+      </button>
+
+      <div style={{ display: 'flex', gap: 16, marginBottom: 18 }}>
+        <Cover src={book.cover} alt={book.title} width={100} height={148} radius={5} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 className="bkbx-display" style={{ fontSize: 22, fontWeight: 700, color: C.textLight, margin: '0 0 4px', lineHeight: 1.2 }}>{book.title}</h1>
+          <div className="bkbx-body" style={{ fontSize: 13.5, color: C.textMuted, marginBottom: 10 }}>{book.authors}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Stars value={avg} size={15} />
+            <span className="bkbx-mono" style={{ fontSize: 12, color: C.textMuted }}>
+              {reviewsLoading ? 'carregando…' : avg > 0 ? `${avg.toFixed(1)} · ${rs.length} resenha${rs.length > 1 ? 's' : ''}` : 'sem avaliações ainda'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {book.description && (
+        <p className="bkbx-body" style={{ fontSize: 14, color: C.textLight, lineHeight: 1.6, opacity: 0.9, marginBottom: 20 }}>
+          {book.description}
+        </p>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
+        <Pill active={myStatus === 'want'} onClick={() => onSetShelf(book, 'want')}>Quero ler</Pill>
+        <Pill active={myStatus === 'reading'} onClick={() => onSetShelf(book, 'reading')}>Lendo</Pill>
+        <Pill active={myStatus === 'read'} onClick={() => onSetShelf(book, 'read')} tone="burgundy">Lido</Pill>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 26 }}>
+        <a href={fbShareUrl(book)} target="_blank" rel="noopener noreferrer" className="bkbx-body" style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 6, background: '#3b5998',
+          color: '#fff', fontSize: 12.5, fontWeight: 600, textDecoration: 'none',
+        }}>
+          <Facebook size={14} /> Compartilhar
+        </a>
+        <button onClick={() => onCopyInstagram(book, avg)} className="bkbx-body" style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 6,
+          background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff',
+          fontSize: 12.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+        }}>
+          <Instagram size={14} /> Copiar legenda
+        </button>
+      </div>
+
+      <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 16, marginBottom: 22 }}>
+        <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>SUA AVALIAÇÃO</div>
+        <Stars value={newRating} interactive size={22} onChange={onRatingChange} />
+        <textarea
+          value={newText}
+          onChange={e => onTextChange(e.target.value)}
+          placeholder="O que você achou deste livro?"
+          className="bkbx-input bkbx-body"
+          rows={3}
+          style={{
+            width: '100%', marginTop: 12, padding: 10, borderRadius: 6, border: `1px solid ${C.panelBorder}`,
+            background: C.bgSoft, color: C.textLight, fontSize: 13.5, outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+          }}
+        />
+        <button onClick={() => onSubmit(book)} className="bkbx-body" style={{
+          marginTop: 10, padding: '9px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
+          background: C.gold, color: C.ink, fontWeight: 700, fontSize: 13.5,
+        }}>
+          Publicar resenha
+        </button>
+      </div>
+
+      {justPublished && justPublished.book.id === book.id && (
+        <div style={{
+          background: C.panel, border: `1px solid ${C.goldSoft}`, borderRadius: 10, padding: 16, marginBottom: 22,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Sparkles size={18} color={C.gold} style={{ flexShrink: 0 }} />
+            <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight }}>Resenha publicada! Quer contar pros seus seguidores?</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onCopyInstagram(justPublished.book, justPublished.rating, justPublished.text)} className="bkbx-body" style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 6,
+              background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff',
+              fontSize: 12.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+            }}>
+              <Instagram size={14} /> Compartilhar no Instagram
+            </button>
+            <button onClick={onDismissPublished} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4 }}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reviewsLoading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
+          <Loader2 size={16} className="spin" /> Carregando resenhas…
+        </div>
+      ) : rs.length > 0 && (
+        <div>
+          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>RESENHAS</div>
+          {rs.map(r => (
+            <div key={r.id} style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <Avatar name={r.user_name} src={r.avatar_url} size={32} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="bkbx-body" style={{ fontWeight: 600, fontSize: 13.5, color: C.textLight }}>{r.user_name}</span>
+                  <Stars value={r.rating} size={12} />
+                </div>
+                {r.text && <p className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, opacity: 0.85, margin: '4px 0 0', lineHeight: 1.5 }}>{r.text}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                  <span className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted }}>{relTime(r.created_at)}</span>
+                  <button onClick={() => onToggleLike(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: r.liked_by_me ? C.burgundy : C.textMuted }}>
+                    <Heart size={12} fill={r.liked_by_me ? C.burgundy : 'none'} /> <span className="bkbx-mono" style={{ fontSize: 10.5 }}>{r.like_count || 0}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================== FEED ITEM =========================== */
+function ReviewCard({ r, onOpenBook, onToggleLike }) {
+  if (r.activity_type === 'shelf') {
+    const verb = r.shelf_status === 'reading' ? 'começou a ler' : 'terminou de ler';
+    return (
+      <button
+        onClick={() => onOpenBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none',
+          border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <Avatar name={r.user_name} src={r.avatar_url} size={28} />
+        <BookOpen size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
+        <span className="bkbx-body" style={{ fontSize: 13, color: C.textLight, flex: 1 }}>
+          <strong>{r.user_name}</strong> {verb} <strong>{r.book_title}</strong>
+        </span>
+        <span className="bkbx-mono" style={{ fontSize: 10, color: C.textMuted, flexShrink: 0 }}>{relTime(r.created_at)}</span>
+      </button>
+    );
+  }
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <Avatar name={r.user_name} src={r.avatar_url} />
+        <div style={{ flex: 1 }}>
+          <div className="bkbx-body" style={{ fontWeight: 600, fontSize: 13.5, color: C.textLight }}>{r.user_name}</div>
+          <div className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted }}>{relTime(r.created_at)}</div>
+        </div>
+      </div>
+      <button onClick={() => onOpenBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
+        style={{ display: 'flex', gap: 12, width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
+        <Cover src={r.book_cover} alt={r.book_title} width={52} height={78} />
+        <div style={{ minWidth: 0 }}>
+          <div className="bkbx-display" style={{ fontSize: 15, fontWeight: 600, color: C.textLight, lineHeight: 1.25 }}>{r.book_title}</div>
+          <div className="bkbx-body" style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>{r.book_authors}</div>
+          <Stars value={r.rating} size={13} />
+        </div>
+      </button>
+      {r.text && <p className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, opacity: 0.9, lineHeight: 1.5, margin: '0 0 10px' }}>{r.text}</p>}
+      <div style={{ display: 'flex', gap: 16, borderTop: `1px solid ${C.panelBorder}`, paddingTop: 10 }}>
+        <button onClick={() => onToggleLike(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, color: r.liked_by_me ? C.burgundy : C.textMuted }}>
+          <Heart size={15} fill={r.liked_by_me ? C.burgundy : 'none'} /> <span className="bkbx-mono" style={{ fontSize: 11.5 }}>{r.like_count || 0}</span>
+        </button>
+        <a href={fbShareUrl({ id: r.book_id, title: r.book_title })} target="_blank" rel="noopener noreferrer" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+          <Share2 size={14} /> <span className="bkbx-mono" style={{ fontSize: 11.5 }}>compartilhar</span>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* =========================== PESSOA (linha em lista) =========================== */
+function PersonRow({ person, isFollowing, currentUserId, onOpen, onToggleFollow }) {
+  const isMe = person.id === currentUserId;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.panelBorder}` }}>
+      <button onClick={() => onOpen(person.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <Avatar name={person.name} src={person.avatar_url} size={32} />
+        <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, fontWeight: 600 }}>{person.name}</span>
+      </button>
+      {!isMe && (
+        <button onClick={() => onToggleFollow(person.id, isFollowing)} className="bkbx-body" style={{
+          display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
+        }}>
+          {isFollowing ? <UserCheck size={13} /> : <UserPlus size={13} />}
+          {isFollowing ? 'Seguindo' : 'Seguir'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* =========================== PERFIL DE OUTRA PESSOA =========================== */
+function PersonProfile({ viewedPerson, loading, currentUserId, myFollowingIds, onClose, onToggleFollow, onOpenBook, onOpenPerson }) {
+  if (loading || !viewedPerson) {
+    return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
+        <button onClick={onClose} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
+          <ArrowLeft size={15} /> voltar
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
+          <Loader2 size={16} className="spin" /> Carregando perfil…
+        </div>
+      </div>
+    );
+  }
+  const { user, stats, following, followers, reading, compatibility, shelves } = viewedPerson;
+  const isMe = user.id === currentUserId;
+  const isFollowing = myFollowingIds.has(user.id);
+  const SHELF_LABELS = { want: 'Quero ler', reading: 'Lendo', read: 'Lido' };
+
+  return (
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 90px' }}>
+      <button onClick={onClose} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
+        <ArrowLeft size={15} /> voltar
+      </button>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+        <Avatar name={user.name} src={user.avatar_url} size={56} />
+        <div style={{ flex: 1 }}>
+          <div className="bkbx-display" style={{ fontSize: 19, fontWeight: 700 }}>{user.name}</div>
+          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>
+            {stats.reviews} resenha{stats.reviews !== 1 ? 's' : ''} · {stats.followers} seguidor{stats.followers !== 1 ? 'es' : ''} · {stats.following} seguindo
+          </div>
+        </div>
+        {!isMe && (
+          <button onClick={() => onToggleFollow(user.id, isFollowing)} className="bkbx-body" style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
+          }}>
+            {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
+            {isFollowing ? 'Seguindo' : 'Seguir'}
+          </button>
+        )}
+      </div>
+
+      {!isMe && compatibility?.percent != null && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, background: C.panel, border: `1px solid ${C.goldSoft}`,
+          borderRadius: 8, padding: '10px 14px', marginBottom: 14,
+        }}>
+          <Sparkles size={16} color={C.gold} style={{ flexShrink: 0 }} />
+          <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight }}>
+            <strong style={{ color: C.gold }}>{compatibility.percent}%</strong> de compatibilidade literária com você
+            {compatibility.sharedBooks?.length > 0 && (
+              <span style={{ color: C.textMuted }}> · {compatibility.sharedBooks.length} livro{compatibility.sharedBooks.length !== 1 ? 's' : ''} em comum</span>
+            )}
+          </span>
+        </div>
+      )}
+
+      <div style={{ marginTop: 20 }}>
+        <ReadingStatsCard stats={reading} loading={false} onOpenBook={onOpenBook} />
+      </div>
+
+      {shelves && ['want', 'reading', 'read'].some(k => shelves[k]?.length > 0) && (
+        <div style={{ marginBottom: 26 }}>
+          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+            {isMe ? 'SUA ESTANTE' : `ESTANTE DE ${user.name.split(' ')[0].toUpperCase()}`}
+          </div>
+          {['want', 'reading', 'read'].map(key => shelves[key]?.length > 0 && (
+            <div key={key} style={{ marginBottom: 14 }}>
+              <div className="bkbx-mono" style={{ fontSize: 10, color: C.textMuted, marginBottom: 8 }}>{SHELF_LABELS[key].toUpperCase()} ({shelves[key].length})</div>
+              <div className="bkbx-shelf" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8 }}>
+                {shelves[key].map(b => (
+                  <BookSpine key={b.id} book={{ id: b.id, title: b.title }} onClick={() => onOpenBook({ id: b.id, title: b.title, authors: b.authors, cover: b.cover_url })} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 4, marginBottom: 26 }}>
+        <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+          {isMe ? 'VOCÊ SEGUE' : `QUEM ${user.name.split(' ')[0].toUpperCase()} SEGUE`} ({following.length})
+        </div>
+        {following.length === 0 ? (
+          <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
+        ) : following.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} currentUserId={currentUserId} onOpen={onOpenPerson} onToggleFollow={onToggleFollow} />)}
+      </div>
+
+      <div>
+        <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
+          {isMe ? 'SEGUIDORES' : `QUEM SEGUE ${user.name.split(' ')[0].toUpperCase()}`} ({followers.length})
+        </div>
+        {followers.length === 0 ? (
+          <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
+        ) : followers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} currentUserId={currentUserId} onOpen={onOpenPerson} onToggleFollow={onToggleFollow} />)}
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================
    APP
 ============================================================ */
@@ -283,6 +622,7 @@ export default function Bookerbox() {
   const [searchDone, setSearchDone] = useState(false);
 
   const [feedReviews, setFeedReviews] = useState([]);
+  const [trendingBooks, setTrendingBooks] = useState([]);
   const [feedLoading, setFeedLoading] = useState(false);
 
   const [shelves, setShelves] = useState({}); // bookId -> { status, book }
@@ -293,6 +633,7 @@ export default function Bookerbox() {
 
   const [newRating, setNewRating] = useState(0);
   const [newText, setNewText] = useState('');
+  const [justPublished, setJustPublished] = useState(null); // { book, rating, text }
 
   const [peopleQuery, setPeopleQuery] = useState('');
   const [peopleResults, setPeopleResults] = useState([]);
@@ -305,6 +646,7 @@ export default function Bookerbox() {
   const [viewedPersonLoading, setViewedPersonLoading] = useState(false);
 
   const [myReadingStats, setMyReadingStats] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [readingStatsLoading, setReadingStatsLoading] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
@@ -332,6 +674,7 @@ export default function Bookerbox() {
               setScreen('app');
               await loadShelves(s.token, s.apiBase);
               await loadFeed(s.token, s.apiBase);
+              await loadTrending(s.token, s.apiBase);
               await loadNotifications();
             } catch (e) { /* token inválido/expirado: fica na tela de login */ }
           }
@@ -373,6 +716,13 @@ export default function Bookerbox() {
     } finally {
       setFeedLoading(false);
     }
+  }
+
+  async function loadTrending(tok = token, base = apiBase) {
+    try {
+      const data = await callApi(base, tok, '/books/trending');
+      setTrendingBooks(data.books);
+    } catch (err) { /* falha silenciosa, não é essencial */ }
   }
 
   async function loadBookReviews(bookId) {
@@ -421,6 +771,7 @@ export default function Bookerbox() {
       setScreen('app');
       await loadShelves(data.token, apiBase);
       await loadFeed(data.token, apiBase);
+      await loadTrending(data.token, apiBase);
       await loadNotifications();
       showToast(authMode === 'register' ? 'Conta criada!' : 'Login feito!');
     } catch (err) {
@@ -441,6 +792,7 @@ export default function Bookerbox() {
     setScreen('app');
     await loadShelves(data.token, apiBase);
     await loadFeed(data.token, apiBase);
+    await loadTrending(data.token, apiBase);
     await loadNotifications();
     showToast(`Login feito com ${providerLabel}!`);
   }
@@ -457,24 +809,55 @@ export default function Bookerbox() {
   useEffect(() => {
     if (screen !== 'login') return;
     let cancelled = false;
-    function tryRenderGoogleButton() {
-      if (cancelled) return;
-      if (!window.google?.accounts?.id) {
-        setTimeout(tryRenderGoogleButton, 200); // script do Google ainda carregando, tenta de novo
-        return;
-      }
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-      });
-      const el = document.getElementById('google-signin-btn');
-      if (el) {
-        el.innerHTML = '';
-        window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
+    let pollInterval = null;
+
+    function renderGoogleButton() {
+      if (cancelled || !window.google?.accounts?.id) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+          use_fedcm_for_button: true, // exigido pelo Chrome atual (FedCM)
+        });
+        const el = document.getElementById('google-signin-btn');
+        if (el) {
+          el.innerHTML = '';
+          window.google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', width: 320, text: 'continue_with', locale: 'pt-BR' });
+        }
+      } catch (e) {
+        console.error('Erro ao renderizar botão do Google:', e);
       }
     }
-    tryRenderGoogleButton();
-    return () => { cancelled = true; };
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+    } else {
+      // Carregamos o script sob nosso controle (em vez de só esperar a tag
+      // estática do index.html), assim sabemos exatamente quando ele terminou.
+      let script = document.getElementById('google-identity-script');
+      if (!script) {
+        script = document.createElement('script');
+        script.id = 'google-identity-script';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener('load', renderGoogleButton);
+
+      // Rede de segurança: alguns navegadores (principalmente Chrome com
+      // bloqueadores/extensões) atrasam ou "engolem" o evento load — então
+      // também verificamos periodicamente por até 8 segundos.
+      pollInterval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(pollInterval);
+          renderGoogleButton();
+        }
+      }, 300);
+      setTimeout(() => pollInterval && clearInterval(pollInterval), 8000);
+    }
+
+    return () => { cancelled = true; if (pollInterval) clearInterval(pollInterval); };
   }, [screen, apiBase]);
 
   async function handleLogout() {
@@ -511,6 +894,8 @@ export default function Bookerbox() {
     setSelectedBook(bookStub);
     setNewRating(0);
     setNewText('');
+    setJustPublished(null);
+    setBookDetailReviews([]); // evita mostrar por um instante as resenhas do livro anterior
     loadBookReviews(bookStub.id);
     if (!bookStub.description) {
       try {
@@ -520,7 +905,7 @@ export default function Bookerbox() {
       } catch (e) { /* fica só com o que já tínhamos */ }
     }
   }
-  function closeBook() { setSelectedBook(null); setBookDetailReviews([]); }
+  function closeBook() { setSelectedBook(null); setBookDetailReviews([]); setJustPublished(null); }
 
   /* ---------------- shelves ---------------- */
   async function setShelf(book, status) {
@@ -544,10 +929,13 @@ export default function Bookerbox() {
   /* ---------------- reviews & likes ---------------- */
   async function submitReview(book) {
     if (newRating < 1) { showToast('Escolha ao menos 1 estrela.'); return; }
+    const rating = newRating;
+    const text = newText.trim();
     try {
-      await apiFetch('/reviews', { method: 'POST', body: JSON.stringify({ bookId: book.id, rating: newRating, text: newText.trim() }) });
+      await apiFetch('/reviews', { method: 'POST', body: JSON.stringify({ bookId: book.id, rating, text }) });
       setNewRating(0);
       setNewText('');
+      setJustPublished({ book, rating, text });
       showToast('Resenha publicada!');
       await loadBookReviews(book.id);
       await loadShelves();
@@ -574,11 +962,13 @@ export default function Bookerbox() {
     const quote = `Avaliei "${book.title}" no Bookerbox!`;
     return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(demoUrl)}&quote=${encodeURIComponent(quote)}`;
   }
-  async function copyInstagramCaption(book, avg) {
-    const r = Math.round(avg) || 5;
-    const text = `📖 "${book.title}" — ${'★'.repeat(r)}${'☆'.repeat(5 - r)}\nAvaliado no Bookerbox #bookerbox #livros`;
+  async function copyInstagramCaption(book, rating, text = '') {
+    const r = Math.round(rating) || 5;
+    const stars = '★'.repeat(r) + '☆'.repeat(5 - r);
+    const snippet = text ? `\n\n"${text.length > 200 ? text.slice(0, 200) + '…' : text}"` : '';
+    const caption = `📖 ${book.title}\n${stars}${snippet}\n\nAvaliado no Bookerbox #bookerbox #livros #leitura`;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(caption);
       showToast('Legenda copiada! Cole no Instagram.');
     } catch {
       showToast('Não foi possível copiar automaticamente.');
@@ -631,14 +1021,15 @@ export default function Bookerbox() {
   async function openPerson(personId) {
     setViewedPersonLoading(true);
     try {
-      const [profile, followingRes, followersRes, readingRes, compatRes] = await Promise.all([
+      const [profile, followingRes, followersRes, readingRes, compatRes, shelvesRes] = await Promise.all([
         apiFetch(`/users/${personId}`),
         apiFetch(`/users/${personId}/following`),
         apiFetch(`/users/${personId}/followers`),
         apiFetch(`/users/${personId}/reading-stats`),
         apiFetch(`/users/${personId}/compatibility`),
+        apiFetch(`/users/${personId}/shelves`),
       ]);
-      setViewedPerson({ user: profile.user, stats: profile.stats, following: followingRes.following, followers: followersRes.followers, reading: readingRes, compatibility: compatRes });
+      setViewedPerson({ user: profile.user, stats: profile.stats, following: followingRes.following, followers: followersRes.followers, reading: readingRes, compatibility: compatRes, shelves: shelvesRes });
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -656,6 +1047,46 @@ export default function Bookerbox() {
       showToast(err.message);
     } finally {
       setReadingStatsLoading(false);
+    }
+  }
+
+  /* ---------------- foto de perfil ---------------- */
+  function resizeImageFile(file, maxSize = 240) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não foi possível ler o arquivo.'));
+      reader.onload = () => {
+        const img = new window.Image();
+        img.onerror = () => reject(new Error('Arquivo não parece ser uma imagem válida.'));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+          else { width = Math.round(width * (maxSize / height)); height = maxSize; }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleAvatarFile(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Escolha um arquivo de imagem.'); return; }
+    setAvatarUploading(true);
+    try {
+      const dataUrl = await resizeImageFile(file);
+      const data = await apiFetch('/auth/avatar', { method: 'PATCH', body: JSON.stringify({ avatarUrl: dataUrl }) });
+      setCurrentUser(data.user);
+      showToast('Foto de perfil atualizada!');
+    } catch (err) {
+      showToast(err.message || 'Não foi possível atualizar a foto.');
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -704,7 +1135,7 @@ export default function Bookerbox() {
 
   function onTabClick(id) {
     setActiveTab(id);
-    if (id === 'feed') loadFeed();
+    if (id === 'feed') { loadFeed(); loadTrending(); }
     if (id === 'shelves') loadShelves();
     if (id === 'people') loadConnections();
     if (id === 'profile') { loadMyReadingStats(); loadConnections(); }
@@ -733,11 +1164,19 @@ export default function Bookerbox() {
               <BookOpen size={26} color={C.gold} />
               <span className="bkbx-display" style={{ fontSize: 30, fontWeight: 700, color: C.textLight }}>Bookerbox</span>
             </div>
-            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>conectado à sua API · sua estante, sua rede</div>
+            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>conectando sua estante à sua rede</div>
           </div>
 
           <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 24 }}>
-            <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }} />
+            <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }} />
+            <button
+              type="button"
+              onClick={() => window.google?.accounts?.id?.prompt?.()}
+              className="bkbx-body"
+              style={{ display: 'block', margin: '0 auto 14px', background: 'none', border: 'none', color: C.textMuted, fontSize: 11, textDecoration: 'underline', cursor: 'pointer' }}
+            >
+              Botão do Google não apareceu? Clique aqui
+            </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0', color: C.textMuted, fontSize: 12 }}>
               <div style={{ flex: 1, height: 1, background: C.panelBorder }} />
@@ -834,255 +1273,10 @@ export default function Bookerbox() {
     { id: 'profile', label: 'Perfil', icon: User },
   ];
 
-  const myReviews = feedReviews.filter(r => r.user_id === currentUser.id);
+  const myReviews = feedReviews.filter(r => r.user_id === currentUser.id && r.activity_type !== 'shelf');
   const shelfList = status => Object.values(shelves).filter(s => s.status === status);
   const reviewedBookIds = new Set(myReviews.map(r => r.book_id));
   const myFollowingIds = new Set(myFollowing.map(u => u.id));
-  /* =========================== BOOK DETAIL =========================== */
-  function BookDetail({ book }) {
-    const rs = bookDetailReviews;
-    const avg = rs.length ? rs.reduce((a, r) => a + r.rating, 0) / rs.length : 0;
-    const myStatus = shelves[book.id]?.status;
-
-    return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 90px' }}>
-        <button onClick={closeBook} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
-          <ArrowLeft size={15} /> voltar
-        </button>
-
-        <div style={{ display: 'flex', gap: 16, marginBottom: 18 }}>
-          <Cover src={book.cover} alt={book.title} width={100} height={148} radius={5} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 className="bkbx-display" style={{ fontSize: 22, fontWeight: 700, color: C.textLight, margin: '0 0 4px', lineHeight: 1.2 }}>{book.title}</h1>
-            <div className="bkbx-body" style={{ fontSize: 13.5, color: C.textMuted, marginBottom: 10 }}>{book.authors}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Stars value={avg} size={15} />
-              <span className="bkbx-mono" style={{ fontSize: 12, color: C.textMuted }}>
-                {bookReviewsLoading ? 'carregando…' : avg > 0 ? `${avg.toFixed(1)} · ${rs.length} resenha${rs.length > 1 ? 's' : ''}` : 'sem avaliações ainda'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {book.description && (
-          <p className="bkbx-body" style={{ fontSize: 14, color: C.textLight, lineHeight: 1.6, opacity: 0.9, marginBottom: 20 }}>
-            {book.description}
-          </p>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-          <Pill active={myStatus === 'want'} onClick={() => setShelf(book, 'want')}>Quero ler</Pill>
-          <Pill active={myStatus === 'reading'} onClick={() => setShelf(book, 'reading')}>Lendo</Pill>
-          <Pill active={myStatus === 'read'} onClick={() => setShelf(book, 'read')} tone="burgundy">Lido</Pill>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginBottom: 26 }}>
-          <a href={fbShareUrl(book)} target="_blank" rel="noopener noreferrer" className="bkbx-body" style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 6, background: '#3b5998',
-            color: '#fff', fontSize: 12.5, fontWeight: 600, textDecoration: 'none',
-          }}>
-            <Facebook size={14} /> Compartilhar
-          </a>
-          <button onClick={() => copyInstagramCaption(book, avg)} className="bkbx-body" style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 6,
-            background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff',
-            fontSize: 12.5, fontWeight: 600, border: 'none', cursor: 'pointer',
-          }}>
-            <Instagram size={14} /> Copiar legenda
-          </button>
-        </div>
-
-        <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 16, marginBottom: 22 }}>
-          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>SUA AVALIAÇÃO</div>
-          <Stars value={newRating} interactive size={22} onChange={setNewRating} />
-          <textarea
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            placeholder="O que você achou deste livro?"
-            className="bkbx-input bkbx-body"
-            rows={3}
-            style={{
-              width: '100%', marginTop: 12, padding: 10, borderRadius: 6, border: `1px solid ${C.panelBorder}`,
-              background: C.bgSoft, color: C.textLight, fontSize: 13.5, outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-          <button onClick={() => submitReview(book)} className="bkbx-body" style={{
-            marginTop: 10, padding: '9px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            background: C.gold, color: C.ink, fontWeight: 700, fontSize: 13.5,
-          }}>
-            Publicar resenha
-          </button>
-        </div>
-
-        {bookReviewsLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
-            <Loader2 size={16} className="spin" /> Carregando resenhas…
-          </div>
-        ) : rs.length > 0 && (
-          <div>
-            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>RESENHAS</div>
-            {rs.map(r => (
-              <div key={r.id} style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                <Avatar name={r.user_name} size={32} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="bkbx-body" style={{ fontWeight: 600, fontSize: 13.5, color: C.textLight }}>{r.user_name}</span>
-                    <Stars value={r.rating} size={12} />
-                  </div>
-                  {r.text && <p className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, opacity: 0.85, margin: '4px 0 0', lineHeight: 1.5 }}>{r.text}</p>}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                    <span className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted }}>{relTime(r.created_at)}</span>
-                    <button onClick={() => toggleLike(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: r.liked_by_me ? C.burgundy : C.textMuted }}>
-                      <Heart size={12} fill={r.liked_by_me ? C.burgundy : 'none'} /> <span className="bkbx-mono" style={{ fontSize: 10.5 }}>{r.like_count || 0}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  /* =========================== FEED ITEM =========================== */
-  function ReviewCard({ r }) {
-    return (
-      <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-          <Avatar name={r.user_name} />
-          <div style={{ flex: 1 }}>
-            <div className="bkbx-body" style={{ fontWeight: 600, fontSize: 13.5, color: C.textLight }}>{r.user_name}</div>
-            <div className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted }}>{relTime(r.created_at)}</div>
-          </div>
-        </div>
-        <button onClick={() => openBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
-          style={{ display: 'flex', gap: 12, width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
-          <Cover src={r.book_cover} alt={r.book_title} width={52} height={78} />
-          <div style={{ minWidth: 0 }}>
-            <div className="bkbx-display" style={{ fontSize: 15, fontWeight: 600, color: C.textLight, lineHeight: 1.25 }}>{r.book_title}</div>
-            <div className="bkbx-body" style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>{r.book_authors}</div>
-            <Stars value={r.rating} size={13} />
-          </div>
-        </button>
-        {r.text && <p className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, opacity: 0.9, lineHeight: 1.5, margin: '0 0 10px' }}>{r.text}</p>}
-        <div style={{ display: 'flex', gap: 16, borderTop: `1px solid ${C.panelBorder}`, paddingTop: 10 }}>
-          <button onClick={() => toggleLike(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, color: r.liked_by_me ? C.burgundy : C.textMuted }}>
-            <Heart size={15} fill={r.liked_by_me ? C.burgundy : 'none'} /> <span className="bkbx-mono" style={{ fontSize: 11.5 }}>{r.like_count || 0}</span>
-          </button>
-          <a href={fbShareUrl({ id: r.book_id, title: r.book_title })} target="_blank" rel="noopener noreferrer" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
-            <Share2 size={14} /> <span className="bkbx-mono" style={{ fontSize: 11.5 }}>compartilhar</span>
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  /* =========================== PESSOA (linha em lista) =========================== */
-  function PersonRow({ person, isFollowing }) {
-    const isMe = person.id === currentUser.id;
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.panelBorder}` }}>
-        <button onClick={() => openPerson(person.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-          <Avatar name={person.name} size={32} />
-          <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight, fontWeight: 600 }}>{person.name}</span>
-        </button>
-        {!isMe && (
-          <button onClick={() => toggleFollow(person.id, isFollowing)} className="bkbx-body" style={{
-            display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
-          }}>
-            {isFollowing ? <UserCheck size={13} /> : <UserPlus size={13} />}
-            {isFollowing ? 'Seguindo' : 'Seguir'}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  /* =========================== PERFIL DE OUTRA PESSOA =========================== */
-  function PersonProfile() {
-    if (viewedPersonLoading || !viewedPerson) {
-      return (
-        <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
-          <button onClick={closePerson} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
-            <ArrowLeft size={15} /> voltar
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
-            <Loader2 size={16} className="spin" /> Carregando perfil…
-          </div>
-        </div>
-      );
-    }
-    const { user, stats, following, followers, reading, compatibility } = viewedPerson;
-    const isMe = user.id === currentUser.id;
-    const isFollowing = myFollowingIds.has(user.id);
-
-    return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 90px' }}>
-        <button onClick={closePerson} className="bkbx-body" style={{ background: 'none', border: 'none', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 16, fontSize: 13 }}>
-          <ArrowLeft size={15} /> voltar
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-          <Avatar name={user.name} size={56} />
-          <div style={{ flex: 1 }}>
-            <div className="bkbx-display" style={{ fontSize: 19, fontWeight: 700 }}>{user.name}</div>
-            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted }}>
-              {stats.reviews} resenha{stats.reviews !== 1 ? 's' : ''} · {stats.followers} seguidor{stats.followers !== 1 ? 'es' : ''} · {stats.following} seguindo
-            </div>
-          </div>
-          {!isMe && (
-            <button onClick={() => toggleFollow(user.id, isFollowing)} className="bkbx-body" style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              background: isFollowing ? 'transparent' : C.gold, color: isFollowing ? C.textLight : C.ink, border: `1px solid ${isFollowing ? C.panelBorder : C.gold}`,
-            }}>
-              {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
-              {isFollowing ? 'Seguindo' : 'Seguir'}
-            </button>
-          )}
-        </div>
-
-        {!isMe && compatibility?.percent != null && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, background: C.panel, border: `1px solid ${C.goldSoft}`,
-            borderRadius: 8, padding: '10px 14px', marginBottom: 14,
-          }}>
-            <Sparkles size={16} color={C.gold} style={{ flexShrink: 0 }} />
-            <span className="bkbx-body" style={{ fontSize: 13.5, color: C.textLight }}>
-              <strong style={{ color: C.gold }}>{compatibility.percent}%</strong> de compatibilidade literária com você
-              {compatibility.sharedBooks?.length > 0 && (
-                <span style={{ color: C.textMuted }}> · {compatibility.sharedBooks.length} livro{compatibility.sharedBooks.length !== 1 ? 's' : ''} em comum</span>
-              )}
-            </span>
-          </div>
-        )}
-
-        <div style={{ marginTop: 20 }}>
-          <ReadingStatsCard stats={reading} loading={false} onOpenBook={openBook} />
-        </div>
-
-        <div style={{ marginTop: 4, marginBottom: 26 }}>
-          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
-            {isMe ? 'VOCÊ SEGUE' : `QUEM ${user.name.split(' ')[0].toUpperCase()} SEGUE`} ({following.length})
-          </div>
-          {following.length === 0 ? (
-            <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
-          ) : following.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
-        </div>
-
-        <div>
-          <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
-            {isMe ? 'SEGUIDORES' : `QUEM SEGUE ${user.name.split(' ')[0].toUpperCase()}`} ({followers.length})
-          </div>
-          {followers.length === 0 ? (
-            <EmptyState compact icon={Users} text="Ninguém por aqui ainda." />
-          ) : followers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
-        </div>
-      </div>
-    );
-  }
-
   /* =========================== MAIN RENDER =========================== */
   return (
     <div className="bkbx-body" style={{ minHeight: '100vh', background: C.bg, color: C.textLight }}>
@@ -1126,7 +1320,7 @@ export default function Bookerbox() {
               </div>
             )}
             <button onClick={handleLogout} title="Sair" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Avatar name={currentUser.name} size={26} />
+              <Avatar name={currentUser.name} src={currentUser.avatar_url} size={26} />
               <LogOut size={15} />
             </button>
           </div>
@@ -1151,14 +1345,56 @@ export default function Bookerbox() {
       </div>
 
       {selectedBook ? (
-        <BookDetail book={selectedBook} />
+        <BookDetail
+          key={selectedBook.id}
+          book={selectedBook}
+          reviews={bookDetailReviews}
+          reviewsLoading={bookReviewsLoading}
+          shelves={shelves}
+          onSetShelf={setShelf}
+          newRating={newRating}
+          onRatingChange={setNewRating}
+          newText={newText}
+          onTextChange={setNewText}
+          onSubmit={submitReview}
+          justPublished={justPublished}
+          onDismissPublished={() => setJustPublished(null)}
+          onToggleLike={toggleLike}
+          onCopyInstagram={copyInstagramCaption}
+          onClose={closeBook}
+        />
       ) : viewedPerson ? (
-        <PersonProfile />
+        <PersonProfile
+          viewedPerson={viewedPerson}
+          loading={viewedPersonLoading}
+          currentUserId={currentUser.id}
+          myFollowingIds={myFollowingIds}
+          onClose={closePerson}
+          onToggleFollow={toggleFollow}
+          onOpenBook={openBook}
+          onOpenPerson={openPerson}
+        />
       ) : (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '18px 16px 90px' }}>
 
           {activeTab === 'feed' && (
             <>
+              {trendingBooks.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>EM ALTA NO BOOKERBOX</div>
+                  <div className="bkbx-shelf" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 10, borderBottom: `2px solid ${C.goldSoft}` }}>
+                    {trendingBooks.map(b => (
+                      <button key={b.id} onClick={() => openBook({ id: b.id, title: b.title, authors: b.authors, cover: b.cover_url })}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, textAlign: 'center', width: 66 }}>
+                        <Cover src={b.cover_url} alt={b.title} width={66} height={98} radius={5} />
+                        <div className="bkbx-mono" style={{ fontSize: 10, color: C.gold, marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          <Star size={9} fill={C.gold} strokeWidth={0} /> {b.review_count}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>SEU FEED (você + quem você segue)</div>
               {feedLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.textMuted, fontSize: 13 }}>
@@ -1166,7 +1402,7 @@ export default function Bookerbox() {
                 </div>
               ) : feedReviews.length === 0 ? (
                 <EmptyState icon={Sparkles} text="Nada por aqui ainda. Avalie um livro para começar, ou siga alguém pela API." />
-              ) : feedReviews.map(r => <ReviewCard key={r.id} r={r} />)}
+              ) : feedReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} />)}
             </>
           )}
 
@@ -1262,7 +1498,7 @@ export default function Bookerbox() {
                 <div style={{ marginBottom: 26 }}>
                   <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>RESULTADOS</div>
                   {peopleResults.map(p => (
-                    <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />
+                    <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} currentUserId={currentUser.id} onOpen={openPerson} onToggleFollow={toggleFollow} />
                   ))}
                 </div>
               )}
@@ -1277,14 +1513,14 @@ export default function Bookerbox() {
                 <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>VOCÊ SEGUE ({myFollowing.length})</div>
                 {myFollowing.length === 0 ? (
                   <EmptyState compact icon={Users} text="Você ainda não segue ninguém. Busque pessoas acima." />
-                ) : myFollowing.map(p => <PersonRow key={p.id} person={p} isFollowing={true} />)}
+                ) : myFollowing.map(p => <PersonRow key={p.id} person={p} isFollowing={true} currentUserId={currentUser.id} onOpen={openPerson} onToggleFollow={toggleFollow} />)}
               </div>
 
               <div>
                 <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>SEGUIDORES ({myFollowers.length})</div>
                 {myFollowers.length === 0 ? (
                   <EmptyState compact icon={Users} text="Ninguém te segue ainda." />
-                ) : myFollowers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} />)}
+                ) : myFollowers.map(p => <PersonRow key={p.id} person={p} isFollowing={myFollowingIds.has(p.id)} currentUserId={currentUser.id} onOpen={openPerson} onToggleFollow={toggleFollow} />)}
               </div>
             </>
           )}
@@ -1292,7 +1528,23 @@ export default function Bookerbox() {
           {activeTab === 'profile' && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-                <Avatar name={currentUser.name} size={56} />
+                <label style={{ position: 'relative', cursor: 'pointer', display: 'inline-block' }}>
+                  <Avatar name={currentUser.name} src={currentUser.avatar_url} size={56} />
+                  <div style={{
+                    position: 'absolute', bottom: -2, right: -2, background: C.gold, borderRadius: '50%',
+                    width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `2px solid ${C.bg}`,
+                  }}>
+                    {avatarUploading ? <Loader2 size={11} className="spin" color={C.ink} /> : <Camera size={11} color={C.ink} />}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handleAvatarFile(e.target.files?.[0])}
+                    style={{ display: 'none' }}
+                    disabled={avatarUploading}
+                  />
+                </label>
                 <div>
                   <div className="bkbx-display" style={{ fontSize: 19, fontWeight: 700 }}>{currentUser.name}</div>
                   <button onClick={() => onTabClick('people')} className="bkbx-mono" style={{
@@ -1308,7 +1560,7 @@ export default function Bookerbox() {
               <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>MINHAS RESENHAS</div>
               {myReviews.length === 0 ? (
                 <EmptyState icon={Star} text="Você ainda não avaliou nenhum livro. Busque um título para começar." />
-              ) : myReviews.map(r => <ReviewCard key={r.id} r={r} />)}
+              ) : myReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} />)}
 
               <div style={{ marginTop: 28, paddingTop: 16, borderTop: `1px solid ${C.panelBorder}` }}>
                 <p className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5 }}>
