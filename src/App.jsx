@@ -1169,7 +1169,7 @@ export default function Bookerbox() {
               <BookOpen size={26} color={C.gold} />
               <span className="bkbx-display" style={{ fontSize: 30, fontWeight: 700, color: C.textLight }}>Bookerbox</span>
             </div>
-            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>conectando sua estante à sua rede</div>
+            <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, letterSpacing: 1 }}>Conectando sua estante à sua rede</div>
           </div>
 
           <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 24 }}>
