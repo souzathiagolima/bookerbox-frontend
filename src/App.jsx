@@ -418,35 +418,40 @@ function BookDetail({
 }
 
 /* =========================== FEED ITEM =========================== */
-function ReviewCard({ r, onOpenBook, onToggleLike }) {
+function ReviewCard({ r, onOpenBook, onToggleLike, onOpenPerson }) {
   if (r.activity_type === 'shelf') {
     const verb = r.shelf_status === 'reading' ? 'começou a ler' : 'terminou de ler';
     return (
-      <button
-        onClick={() => onOpenBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none',
-          border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <Avatar name={r.user_name} src={r.avatar_url} size={28} />
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+        border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+      }}>
+        <button onClick={() => onOpenPerson(r.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+          <Avatar name={r.user_name} src={r.avatar_url} size={28} />
+        </button>
         <BookOpen size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
-        <span className="bkbx-body" style={{ fontSize: 13, color: C.textLight, flex: 1 }}>
-          <strong>{r.user_name}</strong> {verb} <strong>{r.book_title}</strong>
-        </span>
+        <button
+          onClick={() => onOpenBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', flex: 1 }}
+        >
+          <span className="bkbx-body" style={{ fontSize: 13, color: C.textLight }}>
+            <span onClick={e => { e.stopPropagation(); onOpenPerson(r.user_id); }} style={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>{r.user_name}</span>
+            {' '}{verb} <strong>{r.book_title}</strong>
+          </span>
+        </button>
         <span className="bkbx-mono" style={{ fontSize: 10, color: C.textMuted, flexShrink: 0 }}>{relTime(r.created_at)}</span>
-      </button>
+      </div>
     );
   }
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.panelBorder}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+      <button onClick={() => onOpenPerson(r.user_id)} style={{ display: 'flex', gap: 10, marginBottom: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
         <Avatar name={r.user_name} src={r.avatar_url} />
         <div style={{ flex: 1 }}>
           <div className="bkbx-body" style={{ fontWeight: 600, fontSize: 13.5, color: C.textLight }}>{r.user_name}</div>
           <div className="bkbx-mono" style={{ fontSize: 10.5, color: C.textMuted }}>{relTime(r.created_at)}</div>
         </div>
-      </div>
+      </button>
       <button onClick={() => onOpenBook({ id: r.book_id, title: r.book_title, authors: r.book_authors, cover: r.book_cover })}
         style={{ display: 'flex', gap: 12, width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
         <Cover src={r.book_cover} alt={r.book_title} width={52} height={78} />
@@ -1402,7 +1407,7 @@ export default function Bookerbox() {
                 </div>
               ) : feedReviews.length === 0 ? (
                 <EmptyState icon={Sparkles} text="Nada por aqui ainda. Avalie um livro para começar, ou siga alguém pela API." />
-              ) : feedReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} />)}
+              ) : feedReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} onOpenPerson={openPerson} />)}
             </>
           )}
 
@@ -1560,7 +1565,7 @@ export default function Bookerbox() {
               <div className="bkbx-mono" style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>MINHAS RESENHAS</div>
               {myReviews.length === 0 ? (
                 <EmptyState icon={Star} text="Você ainda não avaliou nenhum livro. Busque um título para começar." />
-              ) : myReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} />)}
+              ) : myReviews.map(r => <ReviewCard key={r.id} r={r} onOpenBook={openBook} onToggleLike={toggleLike} onOpenPerson={openPerson} />)}
 
               <div style={{ marginTop: 28, paddingTop: 16, borderTop: `1px solid ${C.panelBorder}` }}>
                 <p className="bkbx-body" style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5 }}>
