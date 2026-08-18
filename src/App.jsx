@@ -1273,7 +1273,7 @@ export default function Bookerbox() {
   const TABS = [
     { id: 'feed', label: 'Início', icon: Home },
     { id: 'search', label: 'Buscar', icon: Search },
-    { id: 'shelves', label: 'Estantes', icon: BookOpen },
+    { id: 'shelves', label: 'Estante', icon: BookOpen },
     { id: 'people', label: 'Amigos', icon: Users },
     { id: 'profile', label: 'Perfil', icon: User },
   ];
